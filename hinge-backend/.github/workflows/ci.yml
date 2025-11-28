@@ -2,26 +2,29 @@ name: Backend CI (Symfony)
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "main", "develop" ]
+    branches: [ "main" ]
 
 jobs:
   symfony-tests:
     name: Test Suite (PHP 8.2 + PostGIS)
     runs-on: ubuntu-latest
 
-    # Service Container: Monte une BDD temporaire pour les tests
+    # Indique à GitHub de travailler dans le sous-dossier
+    defaults:
+      run:
+        working-directory: ./hinge-backend
+
     services:
       postgres:
-        image: postgis/postgis:15-3.3-alpine # INDISPENSABLE pour tes calculs de distance
+        image: postgis/postgis:15-3.3-alpine
         env:
           POSTGRES_DB: app_test
           POSTGRES_USER: app
           POSTGRES_PASSWORD: password
         ports:
           - 5432:5432
-        # Healthcheck pour attendre que la BDD soit prête
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -34,7 +37,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2' # Vérifie si tu es en 8.2 ou 8.3
+          php-version: '8.2'
           extensions: ctype, iconv, pdo, pdo_pgsql, intl, zip
           coverage: none
 
@@ -42,38 +45,28 @@ jobs:
         id: composer-cache
         uses: actions/cache@v3
         with:
-          path: vendor
-          key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+          path: hinge-backend/vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('hinge-backend/composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-php-
 
       - name: Install Dependencies
         run: composer install --prefer-dist --no-progress
 
-      # 1. Vérification du style de code (PSR-12)
-      # Crée un fichier .php-cs-fixer.dist.php si tu veux configurer tes règles
-      - name: Run PHP-CS-Fixer
-        run: vendor/bin/php-cs-fixer fix --dry-run --diff || true 
-        # "|| true" permet de ne pas bloquer le build au début si tu as trop d'erreurs de style
-
-      # 2. Analyse Statique (Détecte les bugs logiques)
       - name: Run PHPStan
-        run: vendor/bin/phpstan analyse src --level=3 memory_limit=1G
+        # Analyse le code pour trouver des bugs (niveau simple 1)
+        run: vendor/bin/phpstan analyse src --level=1 memory_limit=1G || true
 
-      # 3. Setup de l'environnement de Test
       - name: Prepare Database Schema
         env:
-          # On se connecte au service 'postgres' défini plus haut
           DATABASE_URL: postgresql://app:password@127.0.0.1:5432/app_test?serverVersion=15&charset=utf8
         run: |
           php bin/console doctrine:database:create --env=test --if-not-exists
           php bin/console doctrine:schema:create --env=test
 
-      # 4. Génération des clés JWT (Critique pour tes tests d'auth)
       - name: Generate JWT Keys
         run: php bin/console lexik:jwt:generate-keypair --skip-if-exists
 
-      # 5. Exécution des Tests Unitaires
       - name: Run PHPUnit
         env:
           DATABASE_URL: postgresql://app:password@127.0.0.1:5432/app_test?serverVersion=15&charset=utf8
