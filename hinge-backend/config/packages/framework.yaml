@@ -1,0 +1,11 @@
+framework:
+    secret: '%env(APP_SECRET)%'
+
+    session:
+        enabled: false
+
+    serializer:
+        enabled: true
+        enable_attributes: true
+
+    http_method_override: false
