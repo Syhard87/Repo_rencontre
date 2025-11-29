@@ -1,0 +1,13 @@
+framework:
+    # Active le client de test (WebTestCase)
+    test: true
+
+    # Réactive les sessions pour les tests (simulées en fichiers)
+    # C'est nécessaire car WebTestCase simule un navigateur
+    session:
+        enabled: true
+        storage_factory_id: session.storage.factory.mock_file
+
+    # Pour éviter les erreurs si tu testes des pages avec le Profiler
+    profiler:
+        collect: false
