@@ -1,4 +1,4 @@
-name: Backend CI (Symfony)
+name: CI/CD - Global
 
 on:
   push:
@@ -7,16 +7,19 @@ on:
     branches: [ "main" ]
 
 env:
-      JWT_SECRET_KEY: '%kernel.project_dir%/config/jwt/private.pem'
-      JWT_PUBLIC_KEY: '%kernel.project_dir%/config/jwt/public.pem'
-      JWT_PASSPHRASE: 'test_passphrase'
+  # Variables globales pour le Backend
+  JWT_SECRET_KEY: '%kernel.project_dir%/config/jwt/private.pem'
+  JWT_PUBLIC_KEY: '%kernel.project_dir%/config/jwt/public.pem'
+  JWT_PASSPHRASE: 'test_passphrase'
 
 jobs:
+  # ------------------------------------------------------------------
+  # JOB 1 : BACKEND (SYMFONY) - Celui que tu avais déjà
+  # ------------------------------------------------------------------
   symfony-tests:
-    name: Test Suite (PHP 8.2 + PostGIS)
+    name: Backend (Symfony 7 + PostGIS)
     runs-on: ubuntu-latest
-
-    # Indique à GitHub de travailler dans le sous-dossier
+    
     defaults:
       run:
         working-directory: ./hinge-backend
@@ -46,6 +49,7 @@ jobs:
           extensions: ctype, iconv, pdo, pdo_pgsql, intl, zip
           coverage: none
 
+      # Correction du cache pour pointer vers le bon dossier
       - name: Cache Composer packages
         id: composer-cache
         uses: actions/cache@v3
@@ -58,9 +62,9 @@ jobs:
       - name: Install Dependencies
         run: composer install --prefer-dist --no-progress
 
-      - name: Run PHPStan
-        # Analyse le code pour trouver des bugs (niveau simple 1)
-        run: vendor/bin/phpstan analyse src --level=1 memory_limit=1G || true
+      # On commente PHPStan s'il est trop strict au début, décommente-le quand tu veux
+      # - name: Run PHPStan
+      #   run: vendor/bin/phpstan analyse src --level=1 memory_limit=1G || true
 
       - name: Prepare Database Schema
         env:
@@ -70,10 +74,50 @@ jobs:
           php bin/console doctrine:schema:create --env=test
 
       - name: Generate JWT Keys
-        run: php bin/console lexik:jwt:generate-keypair --skip-if-exists
+        # Ajout du cache:clear pour éviter les erreurs de config
+        run: |
+          php bin/console cache:clear --env=test
+          php bin/console lexik:jwt:generate-keypair --skip-if-exists --env=test
 
       - name: Run PHPUnit
         env:
           DATABASE_URL: postgresql://app:password@127.0.0.1:5432/app_test?serverVersion=15&charset=utf8
           APP_ENV: test
         run: vendor/bin/phpunit
+
+  # ------------------------------------------------------------------
+  # JOB 2 : FRONTEND (NUXT 3) - Le petit nouveau !
+  # ------------------------------------------------------------------
+  nuxt-build:
+    name: Frontend (Nuxt 3 Build)
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./my-dating-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Nuxt 3 aime Node récent
+          cache: 'npm'
+          cache-dependency-path: my-dating-app/package-lock.json
+
+      - name: Install Dependencies
+        # npm ci est plus rapide et sûr que npm install pour la CI
+        run: npm ci
+
+      # Vérification de la qualité du code (si tu as ESLint configuré)
+      # - name: Lint
+      #   run: npm run lint --if-present
+
+      # Vérification des types TypeScript (très utile !)
+      # - name: Typecheck
+      #   run: npx nuxi typecheck
+
+      # Le test ultime : Est-ce que l'appli compile pour la production ?
+      - name: Build Nuxt App
+        run: npm run build
