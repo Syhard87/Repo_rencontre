@@ -10,6 +10,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\CurrentUser;
 
 #[Route('/api/discover')]
 class DiscoverController extends AbstractController
@@ -77,7 +78,7 @@ class DiscoverController extends AbstractController
     }
 
     // =========================================================================
-    // 2. ROUTE DE DEBUG
+    // 2. ROUTE DE DEBUG (CORRIGÉE)
     // =========================================================================
     #[Route('/debug', name: 'api_discover_debug', methods: ['GET'])]
     public function debug(Request $request, EntityManagerInterface $em): JsonResponse
@@ -135,12 +136,14 @@ class DiscoverController extends AbstractController
 
         // CHECK B : Déjà liké ?
         $existingLike = $em->getRepository(Like::class)->findOneBy([
-            'sender' => $currentUser,
-            'target' => $targetUser
+            'fromUser' => $currentUser, // ✅ CORRIGÉ (anciennement 'sender')
+            'toUser'   => $targetUser   // ✅ CORRIGÉ (anciennement 'target')
         ]);
         
         if ($existingLike) {
-            $analysis['3_checks']['ALREADY_LIKED'] = '❌ OUI (Type: ' . $existingLike->getType() . ') -> Profil exclu';
+            // ✅ CORRIGÉ : On utilise isSuperLike() au lieu de getType()
+            $type = $existingLike->isSuperLike() ? 'SUPER LIKE' : 'LIKE STANDARD';
+            $analysis['3_checks']['ALREADY_LIKED'] = '❌ OUI (Type: ' . $type . ') -> Profil exclu';
         } else {
             $analysis['3_checks']['ALREADY_LIKED'] = '✅ NON (Aucun like trouvé)';
         }
