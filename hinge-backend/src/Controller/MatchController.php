@@ -38,6 +38,7 @@ class MatchController extends AbstractController
             // 2. Déterminer qui est "l'autre" personne (le Friend)
             // Si je suis user1, l'autre est user2. Sinon l'inverse.
             $isUser1 = $match->getUser1()->getId() === $currentUser->getId();
+            /** @var User $friend */
             $friend = $isUser1 ? $match->getUser2() : $match->getUser1();
 
             // 3. Récupérer la photo principale du friend
@@ -64,7 +65,8 @@ class MatchController extends AbstractController
                 'friend' => [
                     'id' => $friend->getId(),
                     'displayName' => $friend->getDisplayName(),
-                    'age' => $this->calculateAge($friendProfile?->getBirthDate()),
+                    // CORRECTION ICI : On utilise $friend (User) et non $friendProfile (Profile) pour la date de naissance
+                    'age' => $this->calculateAge($friend->getBirthDate()),
                     'city' => $friendProfile?->getCity(),
                     'avatar' => $primaryPhoto,
                 ],
